@@ -23,7 +23,6 @@ generate_limit = 0
 all_combos = []
 
 if intros and products and outros:
-    # Calculate combinations before generating
     st.subheader("🧠 Choose How Many Variations to Generate")
     job_id = str(uuid.uuid4())
     job_dir = os.path.join("temp", job_id)
@@ -54,7 +53,7 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
 
     music_path = None
     if bg_music:
-        music_path = os.path.join(job_dir, "music.mp3")
+        music_path = os.path.join("temp", str(uuid.uuid4()) + "_music.mp3")
         with open(music_path, "wb") as f:
             f.write(bg_music.read())
 
@@ -81,7 +80,7 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
+            st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
             continue
 
         trimmed_output = os.path.join(job_dir, f"tvc_{i+1}_30s.mp4")
@@ -102,7 +101,6 @@ st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
 
         subprocess.run(music_trim_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         output_paths.append(trimmed_output)
-
         progress_bar.progress((i + 1) / total)
 
     zip_name = os.path.join(job_dir, "tvc_variations.zip")
