@@ -47,7 +47,10 @@ def image_to_base64(frame):
 
 if products:
     st.subheader("👉 Step 1: Drag to Reorder Product Scenes")
-    thumb_map = {}
+
+    labels = []
+    label_htmls = []
+    label_to_path = {}
 
     for i, video in enumerate(products):
         filename = f"product_{i}.mp4"
@@ -61,21 +64,19 @@ if products:
 
         if success and frame is not None:
             label = f"Product {i+1}"
-            thumb_map[label] = {"path": video_path, "frame": frame}
+            labels.append(label)
+            label_htmls.append(
+                f"<img src='data:image/jpeg;base64,{image_to_base64(frame)}' width='160'/>"
+            )
+            label_to_path[label] = video_path
 
-    if thumb_map:
-        sorted_labels_input = list(thumb_map.keys())
-        label_htmls = [
-            f"<img src='data:image/jpeg;base64,{image_to_base64(thumb_map[label]['frame'])}' width='160'/>"
-            for label in sorted_labels_input
-        ]
-
-        sorted_labels = sort_items(sorted_labels_input, direction="horizontal", label_htmls=label_htmls)
+    if labels:
+        sorted_labels = sort_items(labels, direction="horizontal", label_htmls=label_htmls)
 
         st.subheader("Your Product Scene Order:")
         for label in sorted_labels:
             st.markdown(f"🔹 {label}")
-            ordered_product_paths.append(thumb_map[label]["path"])
+            ordered_product_paths.append(label_to_path[label])
     else:
         st.warning("No valid thumbnails could be extracted from the uploaded videos.")
 
