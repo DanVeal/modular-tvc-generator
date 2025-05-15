@@ -71,7 +71,7 @@ if products:
             label_to_path[label] = video_path
 
     if labels:
-        sorted_labels = sort_items(labels, direction="horizontal", label_htmls=label_htmls)
+        sorted_labels = sort_items(labels, direction="horizontal")
 
         st.subheader("Your Product Scene Order:")
         for label in sorted_labels:
