@@ -9,16 +9,16 @@ from PIL import Image
 from itertools import product
 from zipfile import ZipFile
 import tempfile
+from io import BytesIO
 
 st.set_page_config(page_title="Modular TVC Generator", layout="centered")
-st.title("🎞️ Modular Commercial Generator with Custom Product Order")
+st.title("🎞️ Modular Commercial Generator with Drag-and-Drop Product Order")
 
-st.markdown("Upload your intro, product, and outro video files. Drag product thumbnails to define the playback order.")
+st.markdown("Upload intro, product, and outro clips. Then drag product thumbnails to define playback order.")
 
 intros = st.file_uploader("Upload Intro Videos", type=["mp4", "mov"], accept_multiple_files=True)
 products = st.file_uploader("Upload Product Videos", type=["mp4", "mov"], accept_multiple_files=True)
 outros = st.file_uploader("Upload Outro Videos", type=["mp4", "mov"], accept_multiple_files=True)
-
 bg_music = st.file_uploader("Optional: Background Music (mp3)", type=["mp3"])
 
 ready_to_generate = False
@@ -39,13 +39,16 @@ def save_uploaded(file_list, prefix):
         paths.append(path)
     return paths
 
-def image_to_base64(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
+def image_to_base64(frame):
+    img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    buffered = BytesIO()
+    img.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode()
 
 if products:
     st.subheader("👉 Step 1: Drag to Reorder Product Scenes")
     thumb_map = {}
+
     for i, video in enumerate(products):
         filename = f"product_{i}.mp4"
         video_path = os.path.join(tmp_dir, filename)
@@ -54,22 +57,22 @@ if products:
 
         cap = cv2.VideoCapture(video_path)
         success, frame = cap.read()
-        thumb_path = os.path.join(tmp_dir, f"thumb_{i}.jpg")
         if success:
-            cv2.imwrite(thumb_path, frame)
-            thumb_map[f"Product {i+1}"] = (thumb_path, video_path)
+            label = f"Product {i+1}"
+            thumb_map[label] = {"path": video_path, "frame": frame}
         cap.release()
 
     label_htmls = [
-        f"<img src='data:image/jpeg;base64,{image_to_base64(thumb_map[label][0])}' width='160'/>"
+        f"<img src='data:image/jpeg;base64,{image_to_base64(thumb_map[label]['frame'])}' width='160'/>"
         for label in thumb_map.keys()
     ]
+
     sorted_labels = sort_items(list(thumb_map.keys()), direction="horizontal", label_htmls=label_htmls)
 
     st.subheader("Your Product Scene Order:")
     for label in sorted_labels:
         st.markdown(f"🔹 {label}")
-        ordered_product_paths.append(thumb_map[label][1])
+        ordered_product_paths.append(thumb_map[label]["path"])
 
 if intros and ordered_product_paths and outros:
     st.subheader("🧠 Step 2: Choose How Many Variations to Generate")
@@ -99,7 +102,7 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
         st.write(f"🎞️ Processing variation {i+1}/{total}")
         combo_files = [intro]
 
-        # Insert ordered product clips (trimmed to ~20s worth)
+        # Limit product clips to ~20s total
         estimated_clip_duration = 6.5
         max_product_clips = int(20 / estimated_clip_duration)
         selected_products = ordered_product_paths[:max_product_clips]
@@ -119,7 +122,8 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
+            st.error(f"❌ FFmpeg error while creating video {i+1}:
+{result.stderr}")
             continue
 
         trimmed_output = os.path.join(tmp_dir, f"tvc_{i+1}_30s.mp4")
