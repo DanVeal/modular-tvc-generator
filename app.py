@@ -18,11 +18,13 @@ outros = st.file_uploader("Upload Outro Videos", type=["mp4", "mov"], accept_mul
 
 bg_music = st.file_uploader("Optional: Background Music (mp3)", type=["mp3"])
 
-if st.button("🎬 Generate Commercial Variations"):
-    if not intros or not products or not outros:
-        st.error("Please upload at least one file for each section (intro, product, outro).")
-        st.stop()
+ready_to_generate = False
+generate_limit = 0
+all_combos = []
 
+if intros and products and outros:
+    # Calculate combinations before generating
+    st.subheader("🧠 Choose How Many Variations to Generate")
     job_id = str(uuid.uuid4())
     job_dir = os.path.join("temp", job_id)
     os.makedirs(job_dir, exist_ok=True)
@@ -41,17 +43,20 @@ if st.button("🎬 Generate Commercial Variations"):
     product_paths = save_uploaded(products, "product")
     outro_paths = save_uploaded(outros, "outro")
 
+    all_combos = list(product(intro_paths, product_paths, outro_paths))
+    total_available = len(all_combos)
+    st.write(f"🧠 {total_available} total variations possible.")
+    generate_limit = st.slider("How many variations would you like to generate?", 1, total_available, value=min(3, total_available))
+    ready_to_generate = True
+
+if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
+    combos = all_combos[:generate_limit]
+
     music_path = None
     if bg_music:
         music_path = os.path.join(job_dir, "music.mp3")
         with open(music_path, "wb") as f:
             f.write(bg_music.read())
-
-    all_combos = list(product(intro_paths, product_paths, outro_paths))
-    total_available = len(all_combos)
-    st.write(f"🧠 {total_available} total variations possible.")
-    generate_limit = st.slider("How many variations would you like to generate?", 1, total_available, value=min(3, total_available))
-    combos = all_combos[:generate_limit]
 
     output_paths = []
 
@@ -69,7 +74,6 @@ if st.button("🎬 Generate Commercial Variations"):
             f.write(f"file '{os.path.abspath(prod)}'\n")
             f.write(f"file '{os.path.abspath(outro)}'\n")
 
-        # 🛠 Re-encode at combine stage to fix sync issues
         cmd = [
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", combo_filelist,
             "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", final_output
@@ -77,10 +81,10 @@ if st.button("🎬 Generate Commercial Variations"):
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
+            st.error(f"❌ FFmpeg error while creating video {i+1}:
+{result.stderr}")
             continue
 
-        # 🎯 Force output to exactly 30 seconds
         trimmed_output = os.path.join(job_dir, f"tvc_{i+1}_30s.mp4")
 
         if music_path:
