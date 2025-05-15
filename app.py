@@ -81,8 +81,7 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            st.error(f"❌ FFmpeg error while creating video {i+1}:
-{result.stderr}")
+st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
             continue
 
         trimmed_output = os.path.join(job_dir, f"tvc_{i+1}_30s.mp4")
