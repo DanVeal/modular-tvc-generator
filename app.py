@@ -20,6 +20,7 @@ bg_music = st.file_uploader("Optional: Background Music (mp3)", type=["mp3"])
 
 ready_to_generate = False
 generate_limit = 0
+intro_paths, product_paths, outro_paths = [], [], []
 all_combos = []
 
 if intros and products and outros:
@@ -42,9 +43,9 @@ if intros and products and outros:
     product_paths = save_uploaded(products, "product")
     outro_paths = save_uploaded(outros, "outro")
 
-    all_combos = list(product(intro_paths, product_paths, outro_paths))
+    all_combos = list(product(intro_paths, outro_paths))
     total_available = len(all_combos)
-    st.write(f"🧠 {total_available} total variations possible.")
+    st.write(f"🧠 {total_available} total intro–outro pairings available.")
     generate_limit = st.slider("How many variations would you like to generate?", 1, total_available, value=min(3, total_available))
     ready_to_generate = True
 
@@ -63,15 +64,24 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
     progress_bar = st.progress(0)
     total = len(combos)
 
-    for i, (intro, prod, outro) in enumerate(combos):
+    for i, (intro, outro) in enumerate(combos):
         st.write(f"🎞️ Processing variation {i+1}/{total}")
+        combo_files = [intro]  # Start with intro
+
+        # Add as many product clips as possible (assuming ~6.5s each)
+        estimated_clip_duration = 6.5
+        max_product_clips = int(20 / estimated_clip_duration)
+        selected_products = product_paths[:max_product_clips]
+        combo_files.extend(selected_products)
+
+        combo_files.append(outro)
+
         combo_filelist = os.path.join(job_dir, f"combo_{i}.txt")
         final_output = os.path.join(job_dir, f"tvc_{i+1}.mp4")
 
         with open(combo_filelist, "w") as f:
-            f.write(f"file '{os.path.abspath(intro)}'\n")
-            f.write(f"file '{os.path.abspath(prod)}'\n")
-            f.write(f"file '{os.path.abspath(outro)}'\n")
+            for clip in combo_files:
+                f.write(f"file '{os.path.abspath(clip)}'\n")
 
         cmd = [
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", combo_filelist,
@@ -80,7 +90,8 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
+            st.error(f"❌ FFmpeg error while creating video {i+1}:
+{result.stderr}")
             continue
 
         trimmed_output = os.path.join(job_dir, f"tvc_{i+1}_30s.mp4")
