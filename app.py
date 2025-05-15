@@ -12,9 +12,9 @@ import tempfile
 from io import BytesIO
 
 st.set_page_config(page_title="Modular TVC Generator", layout="centered")
-st.title("🎞️ Modular Commercial Generator with Drag-and-Drop Product Order")
+st.title("🎞️ Modular Commercial Generator with Limited Product Reordering")
 
-st.markdown("Upload intro, product, and outro clips. Then drag product thumbnails to define playback order.")
+st.markdown("Upload intro, product, and outro clips. Then drag to select the order of product clips to appear between intro and outro.")
 
 intros = st.file_uploader("Upload Intro Videos", type=["mp4", "mov"], accept_multiple_files=True)
 products = st.file_uploader("Upload Product Videos", type=["mp4", "mov"], accept_multiple_files=True)
@@ -39,36 +39,25 @@ def save_uploaded(file_list, prefix):
         paths.append(path)
     return paths
 
-def image_to_base64(frame):
-    img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    buffered = BytesIO()
-    img.save(buffered, format="JPEG")
-    return base64.b64encode(buffered.getvalue()).decode()
-
 if products:
-    st.subheader("👉 Step 1: Drag to Reorder Product Scenes")
+    st.subheader("👉 Step 1: Select and Order Product Clips")
+
+    estimated_clip_duration = 6.5
+    max_product_clips = int(20 / estimated_clip_duration)
+    st.markdown(f"ℹ️ Based on 6.5s per product, **only the first {max_product_clips} clips** will be included in the final video.")
 
     labels = []
-    label_htmls = []
     label_to_path = {}
 
-    for i, video in enumerate(products):
+    for i, video in enumerate(products[:max_product_clips]):
         filename = f"product_{i}.mp4"
         video_path = os.path.join(tmp_dir, filename)
         with open(video_path, "wb") as f:
             f.write(video.read())
 
-        cap = cv2.VideoCapture(video_path)
-        success, frame = cap.read()
-        cap.release()
-
-        if success and frame is not None:
-            label = f"Product {i+1}"
-            labels.append(label)
-            label_htmls.append(
-                f"<img src='data:image/jpeg;base64,{image_to_base64(frame)}' width='160'/>"
-            )
-            label_to_path[label] = video_path
+        label = f"Product {i+1}"
+        labels.append(label)
+        label_to_path[label] = video_path
 
     if labels:
         sorted_labels = sort_items(labels, direction="horizontal")
@@ -78,7 +67,7 @@ if products:
             st.markdown(f"🔹 {label}")
             ordered_product_paths.append(label_to_path[label])
     else:
-        st.warning("No valid thumbnails could be extracted from the uploaded videos.")
+        st.warning("No valid product clips uploaded.")
 
 if intros and ordered_product_paths and outros:
     st.subheader("🧠 Step 2: Choose How Many Variations to Generate")
@@ -107,11 +96,7 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
     for i, (intro, outro) in enumerate(combos):
         st.write(f"🎞️ Processing variation {i+1}/{total}")
         combo_files = [intro]
-
-        estimated_clip_duration = 6.5
-        max_product_clips = int(20 / estimated_clip_duration)
-        selected_products = ordered_product_paths[:max_product_clips]
-        combo_files.extend(selected_products)
+        combo_files.extend(ordered_product_paths)
         combo_files.append(outro)
 
         combo_filelist = os.path.join(tmp_dir, f"combo_{i}.txt")
@@ -127,7 +112,7 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            continue  # silently skip errors
+            continue
 
         trimmed_output = os.path.join(tmp_dir, f"tvc_{i+1}_30s.mp4")
         if music_path:
