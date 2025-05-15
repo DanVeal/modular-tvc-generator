@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import uuid
 import subprocess
+import random
 from itertools import product
 from zipfile import ZipFile
 
@@ -68,11 +69,11 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
         st.write(f"🎞️ Processing variation {i+1}/{total}")
         combo_files = [intro]
 
-        # Add as many product clips as fit in ~20s
+        # Randomly select product clips per variation
         estimated_clip_duration = 6.5
         max_product_clips = int(20 / estimated_clip_duration)
-        selected_products = product_paths[:max_product_clips]
-        combo_files.extend(selected_products)
+        shuffled_products = random.sample(product_paths, min(len(product_paths), max_product_clips))
+        combo_files.extend(shuffled_products)
 
         combo_files.append(outro)
 
