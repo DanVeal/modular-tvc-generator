@@ -51,10 +51,14 @@ if st.button("🎬 Generate Commercial Variations"):
     output_paths = []
 
     st.write(f"Generating {len(combos)} combinations...")
+    progress_bar = st.progress(0)
+    total = len(combos)
 
     for i, (intro, prod, outro) in enumerate(combos):
+        st.write(f"🎞️ Processing variation {i+1}/{total}")
         combo_filelist = os.path.join(job_dir, f"combo_{i}.txt")
         final_output = os.path.join(job_dir, f"tvc_{i+1}.mp4")
+
         with open(combo_filelist, "w") as f:
             f.write(f"file '{os.path.abspath(intro)}'\n")
             f.write(f"file '{os.path.abspath(prod)}'\n")
@@ -74,14 +78,14 @@ if st.button("🎬 Generate Commercial Variations"):
         trimmed_output = os.path.join(job_dir, f"tvc_{i+1}_30s.mp4")
 
         if music_path:
-            # Add music and trim to 30s
+            # Add music and trim
             music_trim_cmd = [
                 "ffmpeg", "-y", "-i", final_output, "-i", music_path,
                 "-t", "30",
                 "-shortest", "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", trimmed_output
             ]
         else:
-            # Just trim to 30s
+            # Just trim
             music_trim_cmd = [
                 "ffmpeg", "-y", "-i", final_output,
                 "-t", "30",
@@ -91,6 +95,8 @@ if st.button("🎬 Generate Commercial Variations"):
         subprocess.run(music_trim_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         output_paths.append(trimmed_output)
 
+        progress_bar.progress((i + 1) / total)
+
     zip_name = os.path.join(job_dir, "tvc_variations.zip")
     with ZipFile(zip_name, "w") as zipf:
         for vid in output_paths:
@@ -99,6 +105,6 @@ if st.button("🎬 Generate Commercial Variations"):
             else:
                 st.warning(f"⚠️ Skipping missing file: {os.path.basename(vid)}")
 
-    st.success(f"✅ Created {len(output_paths)} commercials.")
+    st.success(f"✅ Created {len(output_paths)} 30-second commercials.")
     with open(zip_name, "rb") as f:
         st.download_button("📦 Download All Videos (ZIP)", f, file_name="tvc_variations.zip")
