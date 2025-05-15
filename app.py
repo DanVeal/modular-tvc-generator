@@ -64,9 +64,10 @@ if st.button("🎬 Generate Commercial Variations"):
             f.write(f"file '{os.path.abspath(prod)}'\n")
             f.write(f"file '{os.path.abspath(outro)}'\n")
 
+        # 🛠 Re-encode at combine stage to fix sync issues
         cmd = [
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", combo_filelist,
-            "-c", "copy", final_output
+            "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", final_output
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -74,18 +75,17 @@ if st.button("🎬 Generate Commercial Variations"):
             st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
             continue
 
-        # Force output to exactly 30 seconds
+        # 🎯 Force output to exactly 30 seconds
         trimmed_output = os.path.join(job_dir, f"tvc_{i+1}_30s.mp4")
 
         if music_path:
-            # Add music and trim
             music_trim_cmd = [
                 "ffmpeg", "-y", "-i", final_output, "-i", music_path,
-                "-t", "30",
-                "-shortest", "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", trimmed_output
+                "-t", "30", "-shortest",
+                "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                trimmed_output
             ]
         else:
-            # Just trim
             music_trim_cmd = [
                 "ffmpeg", "-y", "-i", final_output,
                 "-t", "30",
@@ -105,6 +105,6 @@ if st.button("🎬 Generate Commercial Variations"):
             else:
                 st.warning(f"⚠️ Skipping missing file: {os.path.basename(vid)}")
 
-    st.success(f"✅ Created {len(output_paths)} 30-second commercials.")
+    st.success(f"✅ Created {len(output_paths)} synced 30-second commercials.")
     with open(zip_name, "rb") as f:
         st.download_button("📦 Download All Videos (ZIP)", f, file_name="tvc_variations.zip")
