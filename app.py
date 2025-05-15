@@ -1,142 +1,123 @@
 import streamlit as st
-from streamlit_sortables import sort_items
 import os
 import uuid
 import subprocess
-import cv2
-import base64
-from PIL import Image
 from itertools import product
 from zipfile import ZipFile
 import tempfile
-from io import BytesIO
 
-st.set_page_config(page_title="Modular TVC Generator", layout="centered")
-st.title("🎞️ Modular Commercial Generator with Limited Product Reordering")
+st.set_page_config(page_title="TVC Generator", layout="centered")
+st.title("🎞️ Modular TVC Builder — Drag & Swap Product Clips")
 
-st.markdown("Upload intro, product, and outro clips. Then drag to select the order of product clips to appear between intro and outro.")
-
-intros = st.file_uploader("Upload Intro Videos", type=["mp4", "mov"], accept_multiple_files=True)
-products = st.file_uploader("Upload Product Videos", type=["mp4", "mov"], accept_multiple_files=True)
-outros = st.file_uploader("Upload Outro Videos", type=["mp4", "mov"], accept_multiple_files=True)
-bg_music = st.file_uploader("Optional: Background Music (mp3)", type=["mp3"])
-
-ready_to_generate = False
-generate_limit = 0
-intro_paths, product_paths, outro_paths = [], [], []
-all_combos = []
+# Session state for selections
+if "selected" not in st.session_state:
+    st.session_state.selected = []
+if "available" not in st.session_state:
+    st.session_state.available = []
 
 tmp_dir = tempfile.mkdtemp()
-ordered_product_paths = []
 
-def save_uploaded(file_list, prefix):
-    paths = []
-    for i, f in enumerate(file_list):
-        filename = f"{prefix}_{i}.mp4"
-        path = os.path.join(tmp_dir, filename)
-        with open(path, "wb") as out_file:
-            out_file.write(f.read())
-        paths.append(path)
-    return paths
+# Upload videos
+intros = st.file_uploader("Upload Intro Videos", type=["mp4", "mov"], accept_multiple_files=True)
+products = st.file_uploader("Upload Product Clips", type=["mp4", "mov"], accept_multiple_files=True)
+outros = st.file_uploader("Upload Outro Videos", type=["mp4", "mov"], accept_multiple_files=True)
+bg_music = st.file_uploader("Optional: Background Music", type=["mp3"])
 
-if products:
-    st.subheader("👉 Step 1: Select and Order Product Clips")
-
-    estimated_clip_duration = 6.5
-    max_product_clips = int(20 / estimated_clip_duration)
-    st.markdown(f"ℹ️ Based on 6.5s per product, **only the first {max_product_clips} clips** will be included in the final video.")
-
-    labels = []
-    label_to_path = {}
-
-    for i, video in enumerate(products[:max_product_clips]):
-        filename = f"product_{i}.mp4"
-        video_path = os.path.join(tmp_dir, filename)
-        with open(video_path, "wb") as f:
-            f.write(video.read())
-
-        label = f"Product {i+1}"
-        labels.append(label)
-        label_to_path[label] = video_path
-
-    if labels:
-        sorted_labels = sort_items(labels, direction="horizontal")
-
-        st.subheader("Your Product Scene Order:")
-        for label in sorted_labels:
-            st.markdown(f"🔹 {label}")
-            ordered_product_paths.append(label_to_path[label])
-    else:
-        st.warning("No valid product clips uploaded.")
-
-if intros and ordered_product_paths and outros:
-    st.subheader("🧠 Step 2: Choose How Many Variations to Generate")
-    intro_paths = save_uploaded(intros, "intro")
-    outro_paths = save_uploaded(outros, "outro")
-    all_combos = list(product(intro_paths, outro_paths))
-    total_available = len(all_combos)
-    st.write(f"🧠 {total_available} total intro–outro pairings available.")
-    generate_limit = st.slider("How many variations would you like to generate?", 1, total_available, value=min(3, total_available))
-    ready_to_generate = True
-
-if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
-    combos = all_combos[:generate_limit]
-
-    music_path = None
-    if bg_music:
-        music_path = os.path.join(tmp_dir, "music.mp3")
-        with open(music_path, "wb") as f:
-            f.write(bg_music.read())
-
-    output_paths = []
-    st.write(f"Generating {len(combos)} combinations...")
-    progress_bar = st.progress(0)
-    total = len(combos)
-
-    for i, (intro, outro) in enumerate(combos):
-        st.write(f"🎞️ Processing variation {i+1}/{total}")
-        combo_files = [intro]
-        combo_files.extend(ordered_product_paths)
-        combo_files.append(outro)
-
-        combo_filelist = os.path.join(tmp_dir, f"combo_{i}.txt")
-        final_output = os.path.join(tmp_dir, f"tvc_{i+1}.mp4")
-
-        with open(combo_filelist, "w") as f:
-            for clip in combo_files:
-                f.write(f"file '{clip}'\n")
-
-        cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", combo_filelist,
-            "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", final_output
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            continue
-
-        trimmed_output = os.path.join(tmp_dir, f"tvc_{i+1}_30s.mp4")
-        if music_path:
-            music_trim_cmd = [
-                "ffmpeg", "-y", "-i", final_output, "-i", music_path,
-                "-t", "30", "-shortest", "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
-                trimmed_output
-            ]
+# Save product files and setup
+if products and not st.session_state.available and not st.session_state.selected:
+    for i, file in enumerate(products):
+        name = f"Product {i+1}"
+        path = os.path.join(tmp_dir, f"product_{i}.mp4")
+        with open(path, "wb") as f:
+            f.write(file.read())
+        if i < 3:
+            st.session_state.selected.append((name, path))
         else:
-            music_trim_cmd = [
-                "ffmpeg", "-y", "-i", final_output,
-                "-t", "30", "-c:v", "libx264", "-c:a", "aac", trimmed_output
-            ]
+            st.session_state.available.append((name, path))
 
-        subprocess.run(music_trim_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        output_paths.append(trimmed_output)
-        progress_bar.progress((i + 1) / total)
+st.subheader("🧩 Selected Clips (used in your 30s TVC)")
+for i, (label, _) in enumerate(st.session_state.selected):
+    col1, col2 = st.columns([4, 1])
+    col1.markdown(f"🔹 {label}")
+    if col2.button("↩️", key=f"remove_{i}"):
+        st.session_state.available.append(st.session_state.selected.pop(i))
+        st.experimental_rerun()
 
-    zip_name = os.path.join(tmp_dir, "tvc_variations.zip")
-    with ZipFile(zip_name, "w") as zipf:
-        for vid in output_paths:
-            if os.path.exists(vid):
-                zipf.write(vid, arcname=os.path.basename(vid))
+st.subheader("📦 Available Clips (click to use)")
+for i, (label, _) in enumerate(st.session_state.available):
+    col1, col2 = st.columns([4, 1])
+    col1.markdown(label)
+    if col2.button("➕", key=f"add_{i}"):
+        if len(st.session_state.selected) < 3:
+            st.session_state.selected.append(st.session_state.available.pop(i))
+            st.experimental_rerun()
+        else:
+            st.warning("You can only select 3 clips max.")
 
-    st.success(f"✅ Created {len(output_paths)} 30-second commercials.")
-    with open(zip_name, "rb") as f:
-        st.download_button("📦 Download All Videos (ZIP)", f, file_name="tvc_variations.zip")
+# Intro/Outro saving
+intro_paths = []
+outro_paths = []
+if intros:
+    for i, f in enumerate(intros):
+        path = os.path.join(tmp_dir, f"intro_{i}.mp4")
+        with open(path, "wb") as out:
+            out.write(f.read())
+        intro_paths.append(path)
+
+if outros:
+    for i, f in enumerate(outros):
+        path = os.path.join(tmp_dir, f"outro_{i}.mp4")
+        with open(path, "wb") as out:
+            out.write(f.read())
+        outro_paths.append(path)
+
+# Build button
+if intro_paths and outro_paths and st.session_state.selected:
+    st.subheader("🎬 Generate Variations")
+    combos = list(product(intro_paths, outro_paths))
+    generate_limit = st.slider("How many variations to generate?", 1, len(combos), 3)
+    if st.button("Generate TVCs"):
+        output_paths = []
+        music_path = None
+        if bg_music:
+            music_path = os.path.join(tmp_dir, "music.mp3")
+            with open(music_path, "wb") as m:
+                m.write(bg_music.read())
+
+        with st.spinner("Creating videos..."):
+            for i, (intro, outro) in enumerate(combos[:generate_limit]):
+                combo = [intro] + [p[1] for p in st.session_state.selected] + [outro]
+                combo_filelist = os.path.join(tmp_dir, f"combo_{i}.txt")
+                with open(combo_filelist, "w") as f:
+                    for clip in combo:
+                        f.write(f"file '{clip}'\n")
+                output_path = os.path.join(tmp_dir, f"tvc_{i+1}.mp4")
+                cmd = [
+                    "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", combo_filelist,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", output_path
+                ]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+                trimmed_output = os.path.join(tmp_dir, f"tvc_{i+1}_30s.mp4")
+                if music_path:
+                    music_cmd = [
+                        "ffmpeg", "-y", "-i", output_path, "-i", music_path,
+                        "-t", "30", "-shortest", "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                        trimmed_output
+                    ]
+                else:
+                    music_cmd = [
+                        "ffmpeg", "-y", "-i", output_path,
+                        "-t", "30", "-c:v", "libx264", "-c:a", "aac", trimmed_output
+                    ]
+                subprocess.run(music_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                output_paths.append(trimmed_output)
+
+            zip_name = os.path.join(tmp_dir, "tvc_variations.zip")
+            with ZipFile(zip_name, "w") as zipf:
+                for vid in output_paths:
+                    zipf.write(vid, arcname=os.path.basename(vid))
+
+        st.success("✅ All videos generated!")
+        with open(zip_name, "rb") as f:
+            st.download_button("📦 Download All as ZIP", f, file_name="tvc_variations.zip")
