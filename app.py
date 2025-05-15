@@ -70,17 +70,26 @@ if st.button("🎬 Generate Commercial Variations"):
             st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
             continue
 
-        # Add music if provided
+        # Force output to exactly 30 seconds
+        trimmed_output = os.path.join(job_dir, f"tvc_{i+1}_30s.mp4")
+
         if music_path:
-            music_output = os.path.join(job_dir, f"tvc_{i+1}_music.mp4")
-            music_cmd = [
+            # Add music and trim to 30s
+            music_trim_cmd = [
                 "ffmpeg", "-y", "-i", final_output, "-i", music_path,
-                "-shortest", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", music_output
+                "-t", "30",
+                "-shortest", "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k", trimmed_output
             ]
-            subprocess.run(music_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-            output_paths.append(music_output)
         else:
-            output_paths.append(final_output)
+            # Just trim to 30s
+            music_trim_cmd = [
+                "ffmpeg", "-y", "-i", final_output,
+                "-t", "30",
+                "-c:v", "libx264", "-c:a", "aac", trimmed_output
+            ]
+
+        subprocess.run(music_trim_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        output_paths.append(trimmed_output)
 
     zip_name = os.path.join(job_dir, "tvc_variations.zip")
     with ZipFile(zip_name, "w") as zipf:
