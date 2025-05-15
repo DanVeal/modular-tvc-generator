@@ -65,10 +65,10 @@ if st.button("🎬 Generate Commercial Variations"):
             "-c", "copy", final_output
         ]
 
-result = subprocess.run(cmd, capture_output=True, text=True)
-if result.returncode != 0:
-    st.error(f"❌ FFmpeg error while creating video:\\n{result.stderr}")
-    
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            st.error(f"❌ FFmpeg error while creating video {i+1}:\n{result.stderr}")
+            continue
 
         # Add music if provided
         if music_path:
@@ -82,13 +82,13 @@ if result.returncode != 0:
         else:
             output_paths.append(final_output)
 
-zip_name = os.path.join(job_dir, "tvc_variations.zip")
-with ZipFile(zip_name, "w") as zipf:
-    for vid in output_paths:
-        if os.path.exists(vid):
-            zipf.write(vid, arcname=os.path.basename(vid))
-        else:
-            st.warning(f"⚠️ Skipping missing file: {os.path.basename(vid)}")
+    zip_name = os.path.join(job_dir, "tvc_variations.zip")
+    with ZipFile(zip_name, "w") as zipf:
+        for vid in output_paths:
+            if os.path.exists(vid):
+                zipf.write(vid, arcname=os.path.basename(vid))
+            else:
+                st.warning(f"⚠️ Skipping missing file: {os.path.basename(vid)}")
 
     st.success(f"✅ Created {len(output_paths)} commercials.")
     with open(zip_name, "rb") as f:
