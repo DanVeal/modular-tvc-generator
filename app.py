@@ -8,7 +8,7 @@ from zipfile import ZipFile
 st.set_page_config(page_title="Modular TVC Generator", layout="centered")
 st.title("🎞️ Modular Commercial Generator")
 
-st.markdown("Upload interchangeable intro, product, and outro video files. We'll generate all possible combinations.")
+st.markdown("Upload interchangeable intro, product, and outro video files. We'll generate a set of commercial variations.")
 
 st.header("📥 Upload Your Video Assets")
 
@@ -47,7 +47,12 @@ if st.button("🎬 Generate Commercial Variations"):
         with open(music_path, "wb") as f:
             f.write(bg_music.read())
 
-    combos = list(product(intro_paths, product_paths, outro_paths))
+    all_combos = list(product(intro_paths, product_paths, outro_paths))
+    total_available = len(all_combos)
+    st.write(f"🧠 {total_available} total variations possible.")
+    generate_limit = st.slider("How many variations would you like to generate?", 1, total_available, value=min(3, total_available))
+    combos = all_combos[:generate_limit]
+
     output_paths = []
 
     st.write(f"Generating {len(combos)} combinations...")
@@ -105,6 +110,6 @@ if st.button("🎬 Generate Commercial Variations"):
             else:
                 st.warning(f"⚠️ Skipping missing file: {os.path.basename(vid)}")
 
-    st.success(f"✅ Created {len(output_paths)} synced 30-second commercials.")
+    st.success(f"✅ Created {len(output_paths)} 30-second commercials.")
     with open(zip_name, "rb") as f:
         st.download_button("📦 Download All Videos (ZIP)", f, file_name="tvc_variations.zip")
