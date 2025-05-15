@@ -102,7 +102,6 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
         st.write(f"🎞️ Processing variation {i+1}/{total}")
         combo_files = [intro]
 
-        # Limit product clips to ~20s total
         estimated_clip_duration = 6.5
         max_product_clips = int(20 / estimated_clip_duration)
         selected_products = ordered_product_paths[:max_product_clips]
