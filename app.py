@@ -9,21 +9,25 @@ import tempfile
 st.set_page_config(page_title="TVC Generator", layout="centered")
 st.title("🎞️ Modular TVC Builder — Drag & Swap Product Clips")
 
-# Session state for selections
+# Setup session state
 if "selected" not in st.session_state:
     st.session_state.selected = []
 if "available" not in st.session_state:
     st.session_state.available = []
+if "move_index" not in st.session_state:
+    st.session_state.move_index = None
+if "move_type" not in st.session_state:
+    st.session_state.move_type = None
 
 tmp_dir = tempfile.mkdtemp()
 
-# Upload videos
+# Upload video files
 intros = st.file_uploader("Upload Intro Videos", type=["mp4", "mov"], accept_multiple_files=True)
 products = st.file_uploader("Upload Product Clips", type=["mp4", "mov"], accept_multiple_files=True)
 outros = st.file_uploader("Upload Outro Videos", type=["mp4", "mov"], accept_multiple_files=True)
 bg_music = st.file_uploader("Optional: Background Music", type=["mp3"])
 
-# Save product files and setup
+# Initialize selections
 if products and not st.session_state.available and not st.session_state.selected:
     for i, file in enumerate(products):
         name = f"Product {i+1}"
@@ -40,8 +44,8 @@ for i, (label, _) in enumerate(st.session_state.selected):
     col1, col2 = st.columns([4, 1])
     col1.markdown(f"🔹 {label}")
     if col2.button("↩️", key=f"remove_{i}"):
-        st.session_state.available.append(st.session_state.selected.pop(i))
-        st.experimental_rerun()
+        st.session_state.move_index = i
+        st.session_state.move_type = "remove"
 
 st.subheader("📦 Available Clips (click to use)")
 for i, (label, _) in enumerate(st.session_state.available):
@@ -49,12 +53,27 @@ for i, (label, _) in enumerate(st.session_state.available):
     col1.markdown(label)
     if col2.button("➕", key=f"add_{i}"):
         if len(st.session_state.selected) < 3:
-            st.session_state.selected.append(st.session_state.available.pop(i))
-            st.experimental_rerun()
+            st.session_state.move_index = i
+            st.session_state.move_type = "add"
         else:
             st.warning("You can only select 3 clips max.")
 
-# Intro/Outro saving
+# Handle move
+if st.session_state.move_type == "remove":
+    index = st.session_state.move_index
+    st.session_state.available.append(st.session_state.selected.pop(index))
+    st.session_state.move_index = None
+    st.session_state.move_type = None
+    st.experimental_rerun()
+
+if st.session_state.move_type == "add":
+    index = st.session_state.move_index
+    st.session_state.selected.append(st.session_state.available.pop(index))
+    st.session_state.move_index = None
+    st.session_state.move_type = None
+    st.experimental_rerun()
+
+# Process intro/outro files
 intro_paths = []
 outro_paths = []
 if intros:
@@ -71,7 +90,7 @@ if outros:
             out.write(f.read())
         outro_paths.append(path)
 
-# Build button
+# Generate videos
 if intro_paths and outro_paths and st.session_state.selected:
     st.subheader("🎬 Generate Variations")
     combos = list(product(intro_paths, outro_paths))
