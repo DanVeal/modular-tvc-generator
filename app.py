@@ -56,9 +56,9 @@ if st.button("🎬 Generate Commercial Variations"):
         combo_filelist = os.path.join(job_dir, f"combo_{i}.txt")
         final_output = os.path.join(job_dir, f"tvc_{i+1}.mp4")
         with open(combo_filelist, "w") as f:
-            f.write(f"file '{intro}'\n")
-            f.write(f"file '{prod}'\n")
-            f.write(f"file '{outro}'\n")
+            f.write(f"file '{os.path.abspath(intro)}'\n")
+            f.write(f"file '{os.path.abspath(prod)}'\n")
+            f.write(f"file '{os.path.abspath(outro)}'\n")
 
         cmd = [
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", combo_filelist,
