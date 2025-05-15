@@ -57,22 +57,27 @@ if products:
 
         cap = cv2.VideoCapture(video_path)
         success, frame = cap.read()
-        if success:
-            label = f"Product {i+1}"
-            thumb_map[label] = {"path": video_path, "frame": frame}
         cap.release()
 
-    label_htmls = [
-        f"<img src='data:image/jpeg;base64,{image_to_base64(thumb_map[label]['frame'])}' width='160'/>"
-        for label in thumb_map.keys()
-    ]
+        if success and frame is not None:
+            label = f"Product {i+1}"
+            thumb_map[label] = {"path": video_path, "frame": frame}
 
-    sorted_labels = sort_items(list(thumb_map.keys()), direction="horizontal", label_htmls=label_htmls)
+    if thumb_map:
+        sorted_labels_input = list(thumb_map.keys())
+        label_htmls = [
+            f"<img src='data:image/jpeg;base64,{image_to_base64(thumb_map[label]['frame'])}' width='160'/>"
+            for label in sorted_labels_input
+        ]
 
-    st.subheader("Your Product Scene Order:")
-    for label in sorted_labels:
-        st.markdown(f"🔹 {label}")
-        ordered_product_paths.append(thumb_map[label]["path"])
+        sorted_labels = sort_items(sorted_labels_input, direction="horizontal", label_htmls=label_htmls)
+
+        st.subheader("Your Product Scene Order:")
+        for label in sorted_labels:
+            st.markdown(f"🔹 {label}")
+            ordered_product_paths.append(thumb_map[label]["path"])
+    else:
+        st.warning("No valid thumbnails could be extracted from the uploaded videos.")
 
 if intros and ordered_product_paths and outros:
     st.subheader("🧠 Step 2: Choose How Many Variations to Generate")
@@ -121,7 +126,7 @@ if ready_to_generate and st.button("🎬 Generate Commercial Variations"):
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            continue  # skip error reporting
+            continue  # silently skip errors
 
         trimmed_output = os.path.join(tmp_dir, f"tvc_{i+1}_30s.mp4")
         if music_path:
