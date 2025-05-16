@@ -1,5 +1,5 @@
-streamlit
-streamlit-sortables>=0.2.0
+streamlit>=1.32.0
 opencv-python
-pillow
+Pillow
 plotly
+ffmpeg-python
