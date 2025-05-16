@@ -61,9 +61,7 @@ if products and not st.session_state.available and not st.session_state.selected
         else:
             st.session_state.available.append((name, path, thumb, duration))
 
-# Handle safe remove after loop
 remove_index = None
-
 st.subheader("🧩 Selected Clips (Used in Order)")
 for i, (label, path, thumb, duration) in enumerate(st.session_state.selected):
     key = f"remove_{i}"
@@ -75,15 +73,19 @@ if remove_index is not None:
     st.session_state.available.append(st.session_state.selected.pop(remove_index))
     st.experimental_rerun()
 
+add_index = None
 st.subheader("📦 Available Clips (Click to Use)")
 for i, (label, path, thumb, duration) in enumerate(st.session_state.available):
     key = f"add_{i}"
     disabled = len(st.session_state.selected) >= 3
     if st.button("➕ Use", key=key, disabled=disabled):
         if not disabled:
-            st.session_state.selected.append(st.session_state.available.pop(i))
-            st.experimental_rerun()
+            add_index = i
     display_clip(label, duration, thumb)
+
+if add_index is not None:
+    st.session_state.selected.append(st.session_state.available.pop(add_index))
+    st.experimental_rerun()
 
 # === EQUALISED TIMELINE CHART ===
 intro_dur = 4
@@ -105,7 +107,7 @@ for i, (label, dur, color) in enumerate(zip(labels, durations, colors)):
         name=label,
         orientation='h',
         marker=dict(color=color),
-        hovertemplate=f"{label}: {dur:.1f}\"<extra></extra>\"",
+        hovertemplate=f"{label}: {dur:.1f}"<extra></extra>"",
         offset=start
     ))
     start += dur
@@ -122,7 +124,6 @@ fig.update_layout(
 st.markdown("### ⏱️ TVC Timeline Overview")
 st.plotly_chart(fig, use_container_width=True)
 
-# Duration feedback
 actual_total = sum([clip[3] for clip in st.session_state.selected])
 product_limit = 22
 if actual_total <= product_limit:
@@ -130,7 +131,6 @@ if actual_total <= product_limit:
 else:
     st.error(f"⚠️ Product slot exceeds 22s by {round(actual_total - product_limit, 1)}s.")
 
-# Upload intros/outros
 intro_paths = []
 outro_paths = []
 if intros:
@@ -143,7 +143,6 @@ if outros:
         path, _, _ = save_and_analyse_video(f, "outro")
         outro_paths.append(path)
 
-# Generate videos
 if intro_paths and outro_paths and st.session_state.selected:
     st.subheader("🎬 Generate TVC Variations")
     combos = list(product(intro_paths, outro_paths))
