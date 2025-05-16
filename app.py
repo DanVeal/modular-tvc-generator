@@ -9,18 +9,15 @@ import cv2
 import base64
 from PIL import Image
 from io import BytesIO
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="TVC Generator", layout="centered")
-st.title("🎞️ Modular TVC Builder with Smart Clip Selection")
+st.title("🎞️ Modular TVC Builder with Equalised Product Timeline")
 
 if "selected" not in st.session_state:
     st.session_state.selected = []
 if "available" not in st.session_state:
     st.session_state.available = []
-if "move_index" not in st.session_state:
-    st.session_state.move_index = None
-if "move_type" not in st.session_state:
-    st.session_state.move_type = None
 
 tmp_dir = tempfile.mkdtemp()
 
@@ -55,7 +52,6 @@ products = st.file_uploader("Upload Product Clips", type=["mp4", "mov"], accept_
 outros = st.file_uploader("Upload Outro Videos", type=["mp4", "mov"], accept_multiple_files=True)
 bg_music = st.file_uploader("Optional: Background Music", type=["mp3"])
 
-# Load and classify product videos once
 if products and not st.session_state.available and not st.session_state.selected:
     for i, file in enumerate(products):
         name = f"Product {i+1}"
@@ -83,6 +79,51 @@ for i, (label, path, thumb, duration) in enumerate(st.session_state.available):
             st.experimental_rerun()
     display_clip(label, duration, thumb)
 
+# === EQUALISED TIMELINE CHART ===
+intro_dur = 4
+outro_dur = 4
+product_block = 22
+num_products = len(st.session_state.selected)
+equal_product_dur = product_block / num_products if num_products > 0 else 0
+
+labels = ["Intro"] + [clip[0] for clip in st.session_state.selected] + ["Outro"]
+durations = [intro_dur] + [equal_product_dur] * num_products + [outro_dur]
+colors = ["#4CAF50"] + ["#2196F3"] * num_products + ["#FF9800"]
+
+fig = go.Figure()
+start = 0
+for i, (label, dur, color) in enumerate(zip(labels, durations, colors)):
+    fig.add_trace(go.Bar(
+        x=[dur],
+        y=["TVC Timeline"],
+        name=label,
+        orientation='h',
+        marker=dict(color=color),
+        hovertemplate=f"{label}: {dur:.1f}"<extra></extra>",
+        offset=start
+    ))
+    start += dur
+
+fig.update_layout(
+    barmode='stack',
+    height=100,
+    margin=dict(l=20, r=20, t=30, b=20),
+    showlegend=True,
+    xaxis=dict(range=[0, 30], title="Total Duration (seconds)"),
+    yaxis=dict(showticklabels=False),
+)
+
+st.markdown("### ⏱️ TVC Timeline Overview")
+st.plotly_chart(fig, use_container_width=True)
+
+# Duration feedback
+actual_total = sum([clip[3] for clip in st.session_state.selected])
+product_limit = 22
+if actual_total <= product_limit:
+    st.success(f"✅ Product slot: {round(actual_total, 1)}s total (within 22s).")
+else:
+    st.error(f"⚠️ Product slot exceeds 22s by {round(actual_total - product_limit, 1)}s.")
+
 # Upload intros/outros
 intro_paths = []
 outro_paths = []
@@ -96,7 +137,7 @@ if outros:
         path, _, _ = save_and_analyse_video(f, "outro")
         outro_paths.append(path)
 
-# Generation
+# Generate videos
 if intro_paths and outro_paths and st.session_state.selected:
     st.subheader("🎬 Generate TVC Variations")
     combos = list(product(intro_paths, outro_paths))
