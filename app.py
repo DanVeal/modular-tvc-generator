@@ -61,13 +61,19 @@ if products and not st.session_state.available and not st.session_state.selected
         else:
             st.session_state.available.append((name, path, thumb, duration))
 
+# Handle safe remove after loop
+remove_index = None
+
 st.subheader("🧩 Selected Clips (Used in Order)")
 for i, (label, path, thumb, duration) in enumerate(st.session_state.selected):
     key = f"remove_{i}"
     if st.button("↩️ Remove", key=key):
-        st.session_state.available.append(st.session_state.selected.pop(i))
-        st.experimental_rerun()
+        remove_index = i
     display_clip(f"#{i+1} {label}", duration, thumb)
+
+if remove_index is not None:
+    st.session_state.available.append(st.session_state.selected.pop(remove_index))
+    st.experimental_rerun()
 
 st.subheader("📦 Available Clips (Click to Use)")
 for i, (label, path, thumb, duration) in enumerate(st.session_state.available):
@@ -99,7 +105,7 @@ for i, (label, dur, color) in enumerate(zip(labels, durations, colors)):
         name=label,
         orientation='h',
         marker=dict(color=color),
-        hovertemplate=f"{label}: {dur:.1f}\"<extra></extra>",
+        hovertemplate=f"{label}: {dur:.1f}"<extra></extra>",
         offset=start
     ))
     start += dur
