@@ -2,3 +2,4 @@ streamlit
 streamlit-sortables>=0.2.0
 opencv-python
 pillow
+plotly
