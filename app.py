@@ -107,7 +107,7 @@ for i, (label, dur, color) in enumerate(zip(labels, durations, colors)):
         name=label,
         orientation='h',
         marker=dict(color=color),
-        hovertemplate=f"{label}: {dur:.1f}"<extra></extra>"",
+        hovertemplate=f'{label}: {dur:.1f}<extra></extra>',
         offset=start
     ))
     start += dur
