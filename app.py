@@ -1,15 +1,18 @@
 import streamlit as st
 import os
-import uuid
 import subprocess
+import uuid
 from itertools import product
 from zipfile import ZipFile
 import tempfile
+import cv2
+import base64
+from PIL import Image
+from io import BytesIO
 
 st.set_page_config(page_title="TVC Generator", layout="centered")
-st.title("🎞️ Modular TVC Builder — Drag & Swap Product Clips")
+st.title("🎞️ Modular TVC Builder with Smart Clip Selection")
 
-# Setup session state
 if "selected" not in st.session_state:
     st.session_state.selected = []
 if "available" not in st.session_state:
@@ -21,81 +24,84 @@ if "move_type" not in st.session_state:
 
 tmp_dir = tempfile.mkdtemp()
 
-# Upload video files
+def save_and_analyse_video(uploaded_file, name_prefix):
+    path = os.path.join(tmp_dir, f"{name_prefix}_{uuid.uuid4()}.mp4")
+    with open(path, "wb") as out:
+        out.write(uploaded_file.read())
+    cap = cv2.VideoCapture(path)
+    success, frame = cap.read()
+    duration = cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)
+    cap.release()
+    if success and frame is not None:
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        buffered = BytesIO()
+        img.save(buffered, format="JPEG")
+        thumb = base64.b64encode(buffered.getvalue()).decode()
+        return path, thumb, round(duration, 1)
+    return path, None, 0.0
+
+def display_clip(label, duration, thumb, action_btn=None, key=None, disabled=False):
+    col1, col2 = st.columns([5, 1])
+    col1.markdown(f"**{label}**  \n⏱ {duration}s")
+    if thumb:
+        col1.image(f"data:image/jpeg;base64,{thumb}", width=160)
+    if action_btn:
+        col2.button(action_btn, key=key, disabled=disabled)
+
+# Upload section
+st.subheader("🗂 Upload Your Assets")
 intros = st.file_uploader("Upload Intro Videos", type=["mp4", "mov"], accept_multiple_files=True)
 products = st.file_uploader("Upload Product Clips", type=["mp4", "mov"], accept_multiple_files=True)
 outros = st.file_uploader("Upload Outro Videos", type=["mp4", "mov"], accept_multiple_files=True)
 bg_music = st.file_uploader("Optional: Background Music", type=["mp3"])
 
-# Initialize selections
+# Load and classify product videos once
 if products and not st.session_state.available and not st.session_state.selected:
     for i, file in enumerate(products):
         name = f"Product {i+1}"
-        path = os.path.join(tmp_dir, f"product_{i}.mp4")
-        with open(path, "wb") as f:
-            f.write(file.read())
+        path, thumb, duration = save_and_analyse_video(file, "product")
         if i < 3:
-            st.session_state.selected.append((name, path))
+            st.session_state.selected.append((name, path, thumb, duration))
         else:
-            st.session_state.available.append((name, path))
+            st.session_state.available.append((name, path, thumb, duration))
 
-st.subheader("🧩 Selected Clips (used in your 30s TVC)")
-for i, (label, _) in enumerate(st.session_state.selected):
-    col1, col2 = st.columns([4, 1])
-    col1.markdown(f"🔹 {label}")
-    if col2.button("↩️", key=f"remove_{i}"):
-        st.session_state.move_index = i
-        st.session_state.move_type = "remove"
+st.subheader("🧩 Selected Clips (Used in Order)")
+for i, (label, path, thumb, duration) in enumerate(st.session_state.selected):
+    key = f"remove_{i}"
+    if st.button("↩️ Remove", key=key):
+        st.session_state.available.append(st.session_state.selected.pop(i))
+        st.experimental_rerun()
+    display_clip(f"#{i+1} {label}", duration, thumb)
 
-st.subheader("📦 Available Clips (click to use)")
-for i, (label, _) in enumerate(st.session_state.available):
-    col1, col2 = st.columns([4, 1])
-    col1.markdown(label)
-    if col2.button("➕", key=f"add_{i}"):
-        if len(st.session_state.selected) < 3:
-            st.session_state.move_index = i
-            st.session_state.move_type = "add"
-        else:
-            st.warning("You can only select 3 clips max.")
+st.subheader("📦 Available Clips (Click to Use)")
+for i, (label, path, thumb, duration) in enumerate(st.session_state.available):
+    key = f"add_{i}"
+    disabled = len(st.session_state.selected) >= 3
+    if st.button("➕ Use", key=key, disabled=disabled):
+        if not disabled:
+            st.session_state.selected.append(st.session_state.available.pop(i))
+            st.experimental_rerun()
+    display_clip(label, duration, thumb)
 
-# Handle move
-if st.session_state.move_type == "remove":
-    index = st.session_state.move_index
-    st.session_state.available.append(st.session_state.selected.pop(index))
-    st.session_state.move_index = None
-    st.session_state.move_type = None
-    st.experimental_rerun()
-
-if st.session_state.move_type == "add":
-    index = st.session_state.move_index
-    st.session_state.selected.append(st.session_state.available.pop(index))
-    st.session_state.move_index = None
-    st.session_state.move_type = None
-    st.experimental_rerun()
-
-# Process intro/outro files
+# Upload intros/outros
 intro_paths = []
 outro_paths = []
 if intros:
     for i, f in enumerate(intros):
-        path = os.path.join(tmp_dir, f"intro_{i}.mp4")
-        with open(path, "wb") as out:
-            out.write(f.read())
+        path, _, _ = save_and_analyse_video(f, "intro")
         intro_paths.append(path)
 
 if outros:
     for i, f in enumerate(outros):
-        path = os.path.join(tmp_dir, f"outro_{i}.mp4")
-        with open(path, "wb") as out:
-            out.write(f.read())
+        path, _, _ = save_and_analyse_video(f, "outro")
         outro_paths.append(path)
 
-# Generate videos
+# Generation
 if intro_paths and outro_paths and st.session_state.selected:
-    st.subheader("🎬 Generate Variations")
+    st.subheader("🎬 Generate TVC Variations")
     combos = list(product(intro_paths, outro_paths))
     generate_limit = st.slider("How many variations to generate?", 1, len(combos), 3)
-    if st.button("Generate TVCs"):
+    if st.button("🚀 Generate Videos"):
         output_paths = []
         music_path = None
         if bg_music:
@@ -103,7 +109,7 @@ if intro_paths and outro_paths and st.session_state.selected:
             with open(music_path, "wb") as m:
                 m.write(bg_music.read())
 
-        with st.spinner("Creating videos..."):
+        with st.spinner("Creating your commercials..."):
             for i, (intro, outro) in enumerate(combos[:generate_limit]):
                 combo = [intro] + [p[1] for p in st.session_state.selected] + [outro]
                 combo_filelist = os.path.join(tmp_dir, f"combo_{i}.txt")
@@ -137,6 +143,6 @@ if intro_paths and outro_paths and st.session_state.selected:
                 for vid in output_paths:
                     zipf.write(vid, arcname=os.path.basename(vid))
 
-        st.success("✅ All videos generated!")
+        st.success("✅ All commercials created!")
         with open(zip_name, "rb") as f:
-            st.download_button("📦 Download All as ZIP", f, file_name="tvc_variations.zip")
+            st.download_button("📦 Download All (ZIP)", f, file_name="tvc_variations.zip")
